@@ -1,3 +1,4 @@
 Instant
 **/*.hi
 **/*.o
+src/main
