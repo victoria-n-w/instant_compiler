@@ -1,6 +1,6 @@
 module Compiler where
 
-import Control.Monad.Reader
+import Control.Monad.State
 import Data.List (intercalate)
 import Data.Map
 import Instant.Abs
@@ -20,7 +20,7 @@ type Bindings = Map String String
 
 data Env = Env Bindings Int
 
-type Context a = ReaderT Env Err a
+type Context a = StateT Env Err a
 
 failure :: Show a => a -> Context [String]
 failure x = fail $ show x ++ " NOT IMPLEMENTED"
@@ -61,12 +61,21 @@ transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
 transBinaryExp op exp1 exp2 = do
   LlvmResult r1 code1 <- transExp exp1
   LlvmResult r2 code2 <- transExp exp2
+  r <- getRegister
   return $
-    LlvmResult (Register 0) $
+    LlvmResult r $
       code1
         ++ code2
-        ++ [printf "%s = %s i32 %s, %s" (show (Register 0)) op (show r1) (show r2)]
+        ++ [printf "%s = %s i32 %s, %s" (show r) op (show r1) (show r2)]
+
+getRegister :: Context RetValue
+getRegister = do
+  Env binds r <- get
+  put (Env binds (r + 1))
+  return $ Register r
 
 compile :: Program -> Err String
--- empty program, no output
-compile p = runReaderT (transProgram p) $ Env empty 0
+compile p =
+  evalStateT
+    (transProgram p)
+    $ Env empty 0
