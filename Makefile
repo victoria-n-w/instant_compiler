@@ -2,7 +2,7 @@
 
 # Makefile for building the parser and test program.
 
-GHC        = stack ghc
+GHC        = ghc
 HAPPY      = happy
 HAPPY_OPTS = --array --info --ghc --coerce
 ALEX       = alex
