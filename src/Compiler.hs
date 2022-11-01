@@ -13,19 +13,19 @@ instance Show RetValue where
   show (Register r) = "%r" ++ show r
   show (Literal r) = show r
 
-data LlvmResult = LlvmResult RetValue String
+data LlvmResult = LlvmResult RetValue [String]
 
 type Bindings = Map String String
 
 type Context a = ReaderT Bindings Err a
 
-failure :: Show a => a -> Context String
+failure :: Show a => a -> Context [String]
 failure x = fail $ show x ++ " NOT IMPLEMENTED"
 
 failureExp :: Show a => a -> Context LlvmResult
 failureExp x = fail $ show x ++ " NOT IMPLEMENTED"
 
-transIdent :: Ident -> Context String
+transIdent :: Ident -> Context [String]
 transIdent x = case x of
   Ident string -> failure x
 
@@ -35,12 +35,12 @@ transProgram x = case x of
     foldM
       ( \acc x -> do
           compiledStmt <- transStmt x
-          return (acc ++ compiledStmt)
+          return (acc ++ show compiledStmt ++ "\n")
       )
       ""
       stmts
 
-transStmt :: Stmt -> Context String
+transStmt :: Stmt -> Context [String]
 transStmt x = case x of
   SAss ident exp -> failure x
   SExp exp -> do
@@ -53,7 +53,7 @@ transExp x = case x of
   ExpSub exp1 exp2 -> transBinaryExp "sub" exp1 exp2
   ExpMul exp1 exp2 -> transBinaryExp "mul" exp1 exp2
   ExpDiv exp1 exp2 -> failureExp x
-  ExpLit integer -> return $ LlvmResult (Literal integer) ""
+  ExpLit integer -> return $ LlvmResult (Literal integer) []
   ExpVar ident -> failureExp x
 
 transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
@@ -64,9 +64,8 @@ transBinaryExp op exp1 exp2 = do
     LlvmResult (Register 0) $
       code1
         ++ code2
-        ++ printf "%s i32 %s %s\n" op (show r1) (show r2)
+        ++ [printf "%s i32 %s %s" op (show r1) (show r2)]
 
 compile :: Program -> Err String
 -- empty program, no output
-compile (Prog []) = do return "empty??"
 compile p = runReaderT (transProgram p) empty
