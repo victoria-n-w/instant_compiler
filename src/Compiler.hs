@@ -28,6 +28,26 @@ failure x = fail $ show x ++ " NOT IMPLEMENTED"
 failureExp :: Show a => a -> Context LlvmResult
 failureExp x = fail $ show x ++ " NOT IMPLEMENTED"
 
+header =
+  [ "@dnl = internal constant [4 x i8] c\"%d\\0A\\00\"",
+    "declare i32 @printf(i8*, ...)",
+    "define void @printInt(i32 %x) {",
+    "%t0 = getelementptr [4 x i8], [4 x i8]* @dnl, i32 0, i32 0",
+    "call i32 (i8*, ...) @printf(i8* %t0, i32 %x)",
+    "ret void",
+    "}"
+  ]
+
+mainEntry =
+  [ "define i32 @main(i32 %argc, i8** %argv) {",
+    "entry:"
+  ]
+
+mainRet =
+  [ "ret i32 0",
+    "}"
+  ]
+
 transProgram :: Program -> Context String
 transProgram x = case x of
   Prog stmts -> do
@@ -39,14 +59,16 @@ transProgram x = case x of
         )
         []
         stmts
-    return $ intercalate "\n" locs
+    return $
+      intercalate "\n" $
+        header ++ mainEntry ++ locs ++ mainRet
 
 transStmt :: Stmt -> Context [String]
 transStmt x = case x of
   SAss ident exp -> failure x
   SExp exp -> do
-    LlvmResult _ code <- transExp exp
-    return code
+    LlvmResult r code <- transExp exp
+    return $ code ++ [printf "call void @printInt(i32 %s)" (show r)]
 
 transExp :: Exp -> Context LlvmResult
 transExp x = case x of
