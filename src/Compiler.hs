@@ -1,6 +1,7 @@
 module Compiler where
 
 import Control.Monad.Reader
+import Data.List (intercalate)
 import Data.Map
 import Instant.Abs
 import Instant.ErrM
@@ -17,7 +18,9 @@ data LlvmResult = LlvmResult RetValue [String]
 
 type Bindings = Map String String
 
-type Context a = ReaderT Bindings Err a
+data Env = Env Bindings Int
+
+type Context a = ReaderT Env Err a
 
 failure :: Show a => a -> Context [String]
 failure x = fail $ show x ++ " NOT IMPLEMENTED"
@@ -25,20 +28,18 @@ failure x = fail $ show x ++ " NOT IMPLEMENTED"
 failureExp :: Show a => a -> Context LlvmResult
 failureExp x = fail $ show x ++ " NOT IMPLEMENTED"
 
-transIdent :: Ident -> Context [String]
-transIdent x = case x of
-  Ident string -> failure x
-
 transProgram :: Program -> Context String
 transProgram x = case x of
-  Prog stmts ->
-    foldM
-      ( \acc x -> do
-          compiledStmt <- transStmt x
-          return (acc ++ show compiledStmt ++ "\n")
-      )
-      ""
-      stmts
+  Prog stmts -> do
+    locs <-
+      foldM
+        ( \acc x -> do
+            compiledStmt <- transStmt x
+            return (acc ++ compiledStmt)
+        )
+        []
+        stmts
+    return $ intercalate "\n" locs
 
 transStmt :: Stmt -> Context [String]
 transStmt x = case x of
@@ -64,8 +65,8 @@ transBinaryExp op exp1 exp2 = do
     LlvmResult (Register 0) $
       code1
         ++ code2
-        ++ [printf "%s i32 %s %s" op (show r1) (show r2)]
+        ++ [printf "%s = %s i32 %s, %s" (show (Register 0)) op (show r1) (show r2)]
 
 compile :: Program -> Err String
 -- empty program, no output
-compile p = runReaderT (transProgram p) empty
+compile p = runReaderT (transProgram p) $ Env empty 0
