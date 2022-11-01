@@ -1,8 +1,9 @@
 module Compiler where
 
 import Control.Monad.State
+import Data.IntMap qualified as Data.Map
 import Data.List (intercalate)
-import Data.Map
+import Data.Set
 import Instant.Abs
 import Instant.ErrM
 import Instant.Par
@@ -16,17 +17,11 @@ instance Show RetValue where
 
 data LlvmResult = LlvmResult RetValue [String]
 
-type Bindings = Map String String
+type Bindings = Set String
 
 data Env = Env Bindings Int
 
 type Context a = StateT Env Err a
-
-failure :: Show a => a -> Context [String]
-failure x = fail $ show x ++ " NOT IMPLEMENTED"
-
-failureExp :: Show a => a -> Context LlvmResult
-failureExp x = fail $ show x ++ " NOT IMPLEMENTED"
 
 header =
   [ "@dnl = internal constant [4 x i8] c\"%d\\0A\\00\"",
@@ -65,7 +60,21 @@ transProgram x = case x of
 
 transStmt :: Stmt -> Context [String]
 transStmt x = case x of
-  SAss ident exp -> failure x
+  SAss (Ident ident) exp -> do
+    LlvmResult r code <- transExp exp
+    Env binds old_r <- get
+    if Data.Set.member ident binds
+      then
+        return $
+          code ++ [printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)]
+      else -- new variable decalared
+      do
+        put (Env (Data.Set.insert ident binds) old_r)
+        return $
+          code
+            ++ [ printf "%s = alloca i32" ("%" ++ show ident),
+                 printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)
+               ]
   SExp exp -> do
     LlvmResult r code <- transExp exp
     return $ code ++ [printf "call void @printInt(i32 %s)" (show r)]
@@ -75,9 +84,18 @@ transExp x = case x of
   ExpAdd exp1 exp2 -> transBinaryExp "add" exp1 exp2
   ExpSub exp1 exp2 -> transBinaryExp "sub" exp1 exp2
   ExpMul exp1 exp2 -> transBinaryExp "mul" exp1 exp2
-  ExpDiv exp1 exp2 -> failureExp x
+  ExpDiv exp1 exp2 -> transBinaryExp "sdiv" exp1 exp2
   ExpLit integer -> return $ LlvmResult (Literal integer) []
-  ExpVar ident -> failureExp x
+  ExpVar (Ident ident) -> do
+    Env binds _ <- get
+    if Data.Set.member ident binds
+      then do
+        r <- getRegister
+        return $
+          LlvmResult
+            r
+            [printf "%s = load i32, i32* %s" (show r) ("%" ++ ident)]
+      else fail $ "Variable not initialized: " ++ show ident
 
 transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
 transBinaryExp op exp1 exp2 = do
