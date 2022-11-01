@@ -5,6 +5,7 @@ import Instant.Abs
 import Instant.ErrM
 import Instant.Par
 import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
 
 process :: String -> Err String
 process source = do
@@ -18,5 +19,5 @@ main = do
     Ok res ->
       putStrLn res
     Bad msg -> do
-      putStrLn $ "Error: " ++ msg
+      hPutStrLn stderr $ "Error: " ++ msg
       exitFailure

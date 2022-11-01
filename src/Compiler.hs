@@ -72,7 +72,7 @@ transStmt x = case x of
         put (Env (Data.Set.insert ident binds) old_r)
         return $
           code
-            ++ [ printf "%s = alloca i32" ("%" ++ show ident),
+            ++ [ printf "%s = alloca i32" ("%" ++ ident),
                  printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)
                ]
   SExp exp -> do
@@ -81,7 +81,7 @@ transStmt x = case x of
 
 transExp :: Exp -> Context LlvmResult
 transExp x = case x of
-  ExpAdd exp1 exp2 -> transBinaryExp "add" exp1 exp2
+  ExpAdd exp1 exp2 -> transBinaryExp "add" exp2 exp1 -- swap the expressions
   ExpSub exp1 exp2 -> transBinaryExp "sub" exp1 exp2
   ExpMul exp1 exp2 -> transBinaryExp "mul" exp1 exp2
   ExpDiv exp1 exp2 -> transBinaryExp "sdiv" exp1 exp2
@@ -95,7 +95,7 @@ transExp x = case x of
           LlvmResult
             r
             [printf "%s = load i32, i32* %s" (show r) ("%" ++ ident)]
-      else fail $ "Variable not initialized: " ++ show ident
+      else fail $ "Variable not initialized: " ++ ident
 
 transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
 transBinaryExp op exp1 exp2 = do
