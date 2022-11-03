@@ -53,7 +53,7 @@ for code in $(ls examples/*.in); do
         continue
     fi
 
-    java -jar lib/jasmin.jar $jvm_out
+    java -jar lib/jasmin.jar $jvm_out > /dev/null
 
     if [[ $? -eq 0 ]]; then
         echo -e "\e[0;32mjvm $code passed by jvm\e[0m"
