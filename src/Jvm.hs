@@ -68,7 +68,6 @@ transStmt x = case x of
         put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
         return $ Declared (code ++ [store free_var]) height
   SExp exp -> do
-    -- TODO print
     optres <- transExp exp
     let (OptResNode code height _) = getFirst optres
     if height > 1
@@ -140,7 +139,6 @@ isCommutative Mul = True
 isCommutative Sub = False
 isCommutative Div = False
 
--- TODO optimize
 literal :: Integer -> String
 literal x
   | 0 < x && x <= 5 = "iconst_" ++ show x
@@ -148,7 +146,6 @@ literal x
   | x <= 32767 = "sipush " ++ show x
   | otherwise = "ldc " ++ show x
 
--- TODO optimize
 store :: Int -> String
 store x
   | 0 <= x && x <= 3 = "istore_" ++ show x
