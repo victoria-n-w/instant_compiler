@@ -49,22 +49,29 @@ transProgram (Prog stmts) = do
             ++ methodOutro
         )
 
--- code, stack height, declared locals
-data StmtRes = Declared [String] Int | Res [String] Int
+data StmtRes
+  = Declared
+      { stmtCode :: [String],
+        stackHeight :: Int
+      }
+  | Res
+      { stmtCode :: [String],
+        stackHeight :: Int
+      }
 
 transStmt :: Stmt -> Context StmtRes
 transStmt (SAss (Ident ident) exp) = do
   optres <- transExp exp
   let (OptResNode code height _) = getFirst optres
-  (Env binds free_var) <- get
+  (Env binds freeVar) <- get
   case Data.Map.lookup ident binds of
     Just num -> do
       -- variable declared before
       return $ Res (code ++ [store num]) height
     Nothing -> do
       -- variable not declared
-      put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
-      return $ Declared (code ++ [store free_var]) height
+      put (Env (Data.Map.insert ident freeVar binds) (freeVar + 1))
+      return $ Declared (code ++ [store freeVar]) height
 transStmt (SExp exp) = do
   optres <- transExp exp
   let (OptResNode code height _) = getFirst optres
@@ -72,11 +79,18 @@ transStmt (SExp exp) = do
     then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
     else return $ Res (getPrintStream ++ code ++ printInt) 2
 
-data OptResNode = OptResNode [String] Int Int
+data OptResNode = OptResNode
+  { code :: [String],
+    height :: Int,
+    nSwaps :: Int
+  }
 
 data OptRes
-  = One OptResNode
-  | Two OptResNode OptResNode
+  = One {res :: OptResNode}
+  | Two
+      { noSwapNeeded :: OptResNode,
+        swapNeeded :: OptResNode
+      }
 
 getFirst :: OptRes -> OptResNode
 getFirst (One node) = node
@@ -112,12 +126,17 @@ transOptimizeStack op exp1 exp2 = do
       return $ One $ OptResNode (code1 ++ code2 ++ [show op]) (height1 + 1) (nSwaps1 + nSwaps2)
     else do
       -- swap
+      -- TODO
       let swap = ["swap" | not (isCommutative op)]
       return $ One $ OptResNode (code2 ++ code1 ++ swap ++ [show op]) (height2 + 1) (nSwaps1 + nSwaps2)
 
--- TODO
+-- The Op, and operations in both expressions have to be the same type
 transOptimizeStackSwaps :: Op -> Exp -> Exp -> Context OptRes
-transOptimizeStackSwaps = transOptimizeStack
+transOptimizeStackSwaps op exp1 exp2 = do
+  optres1 <- transExp exp1
+  optres2 <- transExp exp2
+  case optres1 optres2 of
+    One 
 
 data Op
   = Add
