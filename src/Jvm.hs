@@ -1,7 +1,6 @@
 module Jvm (compile) where
 
 import Control.Monad.State
-import Data.IntMap qualified as Data.Map
 import Data.List (intercalate)
 import Data.Map
 import Instant.Abs
@@ -13,13 +12,16 @@ compile :: Program -> Err String
 compile p =
   evalStateT
     (transProgram p)
-    empty
+    $ Env empty 1
 
 type Result = Err [String]
 
 type Bindings = Map String Int
 
-type Context a = StateT Bindings Err a
+-- bindings, first free variable
+data Env = Env Bindings Int
+
+type Context a = StateT Env Err a
 
 failure :: Show a => a -> Context [String]
 failure x = fail $ "Undefined case: " ++ show x
@@ -40,11 +42,24 @@ transProgram x = case x of
 
 transStmt :: Stmt -> Context [String]
 transStmt x = case x of
-  SAss ident exp -> failure x
+  SAss (Ident ident) exp -> do
+    optres <- transExp exp
+    let code = case optres of
+          One (OptResNode code height _) -> code
+          Two (OptResNode code _ _) _ -> code
+    (Env binds free_var) <- get
+    case Data.Map.lookup ident binds of
+      Just num -> do
+        -- variable declared before
+        return $ code ++ [store num]
+      Nothing -> do
+        -- variable not declared
+        put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
+        return $ code ++ [store free_var]
   SExp exp -> do
     optres <- transExp exp
     case optres of
-      One (OptResNode code _ _) -> return code
+      One (OptResNode code height _) -> return code
       Two (OptResNode code _ _) _ -> return code
 
 data OptResNode = OptResNode [String] Int Int
@@ -109,4 +124,8 @@ isCommutative Div = False
 
 -- TODO optimize
 literal :: Integer -> String
-literal x = "put " ++ show x
+literal x = "iput " ++ show x
+
+-- TODO optimize
+store :: Int -> String
+store x = "istore " ++ show x
