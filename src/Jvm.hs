@@ -101,6 +101,7 @@ transOptimizeStack op exp1 exp2 = do
       let swap = ["swap" | not (isCommutative op)]
       return $ One $ OptResNode (code2 ++ code1 ++ [show op] ++ swap) (height2 + 1) (nSwaps1 + nSwaps2)
 
+-- TODO
 transOptimizeStackSwaps :: Op -> Exp -> Exp -> Context OptRes
 transOptimizeStackSwaps = transOptimizeStack
 
