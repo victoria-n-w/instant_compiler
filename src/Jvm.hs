@@ -57,6 +57,7 @@ transStmt x = case x of
         put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
         return $ code ++ [store free_var]
   SExp exp -> do
+    -- TODO print
     optres <- transExp exp
     case optres of
       One (OptResNode code height _) -> return code
@@ -125,8 +126,12 @@ isCommutative Div = False
 
 -- TODO optimize
 literal :: Integer -> String
-literal x = "iput " ++ show x
+literal x
+  | 0 < x && x <= 3 = "iput_" ++ show x
+  | 3 < x = "iput " ++ show x
 
 -- TODO optimize
 store :: Int -> String
-store x = "istore " ++ show x
+store x
+  | 0 < x && x <= 3 = "store_" ++ show x
+  | 3 < x = "store " ++ show x
