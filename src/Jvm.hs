@@ -29,13 +29,15 @@ failure x = fail $ "Undefined case: " ++ show x
 transProgram :: Program -> Context String
 transProgram x = case x of
   Prog stmts -> do
-    locs <-
+    (locs, height, locals) <-
       foldM
-        ( \acc x -> do
-            compiledStmt <- transStmt x
-            return (acc ++ compiledStmt)
+        ( \(accCode, accHeight, accLocal) x -> do
+            res <- transStmt x
+            case res of
+              Declared code height -> return (accCode ++ code, max accHeight height, accLocal + 1)
+              Res code height -> return (accCode ++ code, max accHeight height, accLocal)
         )
-        []
+        ([], 0, 0)
         stmts
     return $
       intercalate "\n" $
@@ -43,12 +45,15 @@ transProgram x = case x of
           identJvm
           ( classHeader
               "Name"
-              ++ methodHeader 100 100
+              ++ methodHeader height (locals + 1)
               ++ locs
               ++ methodOutro
           )
 
-transStmt :: Stmt -> Context [String]
+-- code, stack height, declared locals
+data StmtRes = Declared [String] Int | Res [String] Int
+
+transStmt :: Stmt -> Context StmtRes
 transStmt x = case x of
   SAss (Ident ident) exp -> do
     optres <- transExp exp
@@ -57,18 +62,18 @@ transStmt x = case x of
     case Data.Map.lookup ident binds of
       Just num -> do
         -- variable declared before
-        return $ code ++ [store num]
+        return $ Res (code ++ [store num]) height
       Nothing -> do
         -- variable not declared
         put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
-        return $ code ++ [store free_var]
+        return $ Declared (code ++ [store free_var]) height
   SExp exp -> do
     -- TODO print
     optres <- transExp exp
     let (OptResNode code height _) = getFirst optres
     if height > 1
-      then return $ code ++ getPrintStream ++ ["swap"] ++ printInt
-      else return $ getPrintStream ++ code ++ printInt
+      then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
+      else return $ Res (getPrintStream ++ code ++ printInt) 2
 
 data OptResNode = OptResNode [String] Int Int
 
