@@ -44,58 +44,55 @@ mainRet =
   ]
 
 transProgram :: Program -> Context String
-transProgram x = case x of
-  Prog stmts -> do
-    locs <-
-      foldM
-        ( \acc x -> do
-            compiledStmt <- transStmt x
-            return (acc ++ compiledStmt)
-        )
-        []
-        stmts
-    return $
-      intercalate "\n" $
-        header ++ mainEntry ++ locs ++ mainRet
+transProgram (Prog stmts) = do
+  locs <-
+    foldM
+      ( \acc x -> do
+          compiledStmt <- transStmt x
+          return (acc ++ compiledStmt)
+      )
+      []
+      stmts
+  return $
+    intercalate "\n" $
+      header ++ mainEntry ++ locs ++ mainRet
 
 transStmt :: Stmt -> Context [String]
-transStmt x = case x of
-  SAss (Ident ident) exp -> do
-    LlvmResult r code <- transExp exp
-    Env binds old_r <- get
-    if Data.Set.member ident binds
-      then
-        return $
-          code ++ [printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)]
-      else -- new variable decalared
-      do
-        put (Env (Data.Set.insert ident binds) old_r)
-        return $
-          code
-            ++ [ printf "%s = alloca i32" ("%" ++ ident),
-                 printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)
-               ]
-  SExp exp -> do
-    LlvmResult r code <- transExp exp
-    return $ code ++ [printf "call void @printInt(i32 %s)" (show r)]
+transStmt (SAss (Ident ident) exp) = do
+  LlvmResult r code <- transExp exp
+  Env binds old_r <- get
+  if Data.Set.member ident binds
+    then
+      return $
+        code ++ [printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)]
+    else -- new variable decalared
+    do
+      put (Env (Data.Set.insert ident binds) old_r)
+      return $
+        code
+          ++ [ printf "%s = alloca i32" ("%" ++ ident),
+               printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)
+             ]
+transStmt (SExp exp) = do
+  LlvmResult r code <- transExp exp
+  return $ code ++ [printf "call void @printInt(i32 %s)" (show r)]
 
 transExp :: Exp -> Context LlvmResult
-transExp x = case x of
-  ExpAdd exp1 exp2 -> transBinaryExp "add" exp2 exp1 -- swap the expressions
-  ExpSub exp1 exp2 -> transBinaryExp "sub" exp1 exp2
-  ExpMul exp1 exp2 -> transBinaryExp "mul" exp1 exp2
-  ExpDiv exp1 exp2 -> transBinaryExp "sdiv" exp1 exp2
-  ExpLit integer -> return $ LlvmResult (Literal integer) []
-  ExpVar (Ident ident) -> do
-    Env binds _ <- get
-    if Data.Set.member ident binds
-      then do
-        r <- getRegister
-        return $
-          LlvmResult
-            r
-            [printf "%s = load i32, i32* %s" (show r) ("%" ++ ident)]
-      else fail $ "Variable not initialized: " ++ ident
+transExp (ExpAdd exp1 exp2) = transBinaryExp "add" exp2 exp1 -- swap the expressions
+transExp (ExpSub exp1 exp2) = transBinaryExp "sub" exp1 exp2
+transExp (ExpMul exp1 exp2) = transBinaryExp "mul" exp1 exp2
+transExp (ExpDiv exp1 exp2) = transBinaryExp "sdiv" exp1 exp2
+transExp (ExpLit integer) = return $ LlvmResult (Literal integer) []
+transExp (ExpVar (Ident ident)) = do
+  Env binds _ <- get
+  if Data.Set.member ident binds
+    then do
+      r <- getRegister
+      return $
+        LlvmResult
+          r
+          [printf "%s = load i32, i32* %s" (show r) ("%" ++ ident)]
+    else fail $ "Variable not initialized: " ++ ident
 
 transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
 transBinaryExp op exp1 exp2 = do

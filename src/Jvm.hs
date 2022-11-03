@@ -27,52 +27,50 @@ failure :: Show a => a -> Context [String]
 failure x = fail $ "Undefined case: " ++ show x
 
 transProgram :: Program -> Context String
-transProgram x = case x of
-  Prog stmts -> do
-    (locs, height, locals) <-
-      foldM
-        ( \(accCode, accHeight, accLocal) x -> do
-            res <- transStmt x
-            case res of
-              Declared code height -> return (accCode ++ code, max accHeight height, accLocal + 1)
-              Res code height -> return (accCode ++ code, max accHeight height, accLocal)
+transProgram (Prog stmts) = do
+  (locs, height, locals) <-
+    foldM
+      ( \(accCode, accHeight, accLocal) x -> do
+          res <- transStmt x
+          case res of
+            Declared code height -> return (accCode ++ code, max accHeight height, accLocal + 1)
+            Res code height -> return (accCode ++ code, max accHeight height, accLocal)
+      )
+      ([], 0, 0)
+      stmts
+  return $
+    intercalate "\n" $
+      Prelude.map
+        identJvm
+        ( classHeader
+            "Name"
+            ++ methodHeader height (locals + 1)
+            ++ locs
+            ++ methodOutro
         )
-        ([], 0, 0)
-        stmts
-    return $
-      intercalate "\n" $
-        Prelude.map
-          identJvm
-          ( classHeader
-              "Name"
-              ++ methodHeader height (locals + 1)
-              ++ locs
-              ++ methodOutro
-          )
 
 -- code, stack height, declared locals
 data StmtRes = Declared [String] Int | Res [String] Int
 
 transStmt :: Stmt -> Context StmtRes
-transStmt x = case x of
-  SAss (Ident ident) exp -> do
-    optres <- transExp exp
-    let (OptResNode code height _) = getFirst optres
-    (Env binds free_var) <- get
-    case Data.Map.lookup ident binds of
-      Just num -> do
-        -- variable declared before
-        return $ Res (code ++ [store num]) height
-      Nothing -> do
-        -- variable not declared
-        put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
-        return $ Declared (code ++ [store free_var]) height
-  SExp exp -> do
-    optres <- transExp exp
-    let (OptResNode code height _) = getFirst optres
-    if height > 1
-      then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
-      else return $ Res (getPrintStream ++ code ++ printInt) 2
+transStmt (SAss (Ident ident) exp) = do
+  optres <- transExp exp
+  let (OptResNode code height _) = getFirst optres
+  (Env binds free_var) <- get
+  case Data.Map.lookup ident binds of
+    Just num -> do
+      -- variable declared before
+      return $ Res (code ++ [store num]) height
+    Nothing -> do
+      -- variable not declared
+      put (Env (Data.Map.insert ident free_var binds) (free_var + 1))
+      return $ Declared (code ++ [store free_var]) height
+transStmt (SExp exp) = do
+  optres <- transExp exp
+  let (OptResNode code height _) = getFirst optres
+  if height > 1
+    then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
+    else return $ Res (getPrintStream ++ code ++ printInt) 2
 
 data OptResNode = OptResNode [String] Int Int
 
