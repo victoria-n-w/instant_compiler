@@ -43,7 +43,7 @@ transProgram x = case x of
           identJvm
           ( classHeader
               "Name"
-              ++ methodHeader 100
+              ++ methodHeader 100 100
               ++ locs
               ++ methodOutro
           )
@@ -92,8 +92,12 @@ transExp (ExpDiv exp1 exp2) =
     (ExpDiv _ _, ExpDiv _ _) -> transOptimizeStackSwaps Div exp1 exp2
     _ -> transOptimizeStack Div exp1 exp2
 transExp (ExpLit int) = return $ One $ OptResNode [literal int] 1 0
-transExp (ExpVar ident) =
-  fail "Not implemented var"
+transExp (ExpVar (Ident ident)) = do
+  (Env binds _) <- get
+  case Data.Map.lookup ident binds of
+    Nothing -> fail $ "Variable not declared: " ++ ident
+    Just a ->
+      return $ One $ OptResNode [load a] 1 0
 
 transOptimizeStack :: Op -> Exp -> Exp -> Context OptRes
 transOptimizeStack op exp1 exp2 = do
@@ -142,8 +146,13 @@ literal x
 -- TODO optimize
 store :: Int -> String
 store x
-  | 0 < x && x <= 3 = "store_" ++ show x
-  | 3 < x = "store " ++ show x
+  | 0 <= x && x <= 3 = "istore_" ++ show x
+  | 3 < x = "istore " ++ show x
+
+load :: Int -> String
+load x
+  | 0 <= x && x <= 3 = "iload_" ++ show x
+  | 3 < x = "iload " ++ show x
 
 classHeader :: String -> [String]
 classHeader name =
@@ -156,10 +165,11 @@ classHeader name =
     ".end method"
   ]
 
-methodHeader :: Int -> [String]
-methodHeader stackLimit =
+methodHeader :: Int -> Int -> [String]
+methodHeader stackLimit localLimit =
   [ ".method public static main([Ljava/lang/String;)V",
-    printf ".limit stack %d" stackLimit
+    printf ".limit stack %d" stackLimit,
+    printf ".limit locals %d" localLimit
   ]
 
 methodOutro :: [String]
