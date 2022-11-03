@@ -16,7 +16,7 @@ ALEX_OPTS  = --ghc
 
 all : compiler
 
-compiler : Instant/Abs.hs Instant/Lex.hs Instant/Par.hs Instant/Print.hs Instant/Test.hs
+compiler : Instant/Abs.hs Instant/Lex.hs Instant/Par.hs Instant/Print.hs Instant/Test.hs src/Jvm.hs src/Llvm.hs src/main.hs
 	ghc -isrc src/main.hs -o compiler
 
 # Rules for building the parser.

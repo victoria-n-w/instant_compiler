@@ -1,7 +1,7 @@
 module Jvm (compile) where
 
 import Control.Monad.State
-import Data.List (intercalate)
+import Data.List
 import Data.Map
 import Instant.Abs
 import Instant.ErrM
@@ -38,15 +38,21 @@ transProgram x = case x of
         []
         stmts
     return $
-      intercalate "\n" locs
+      intercalate "\n" $
+        Prelude.map
+          identJvm
+          ( classHeader
+              "Name"
+              ++ methodHeader 100
+              ++ locs
+              ++ methodOutro
+          )
 
 transStmt :: Stmt -> Context [String]
 transStmt x = case x of
   SAss (Ident ident) exp -> do
     optres <- transExp exp
-    let code = case optres of
-          One (OptResNode code height _) -> code
-          Two (OptResNode code _ _) _ -> code
+    let (OptResNode code height _) = getFirst optres
     (Env binds free_var) <- get
     case Data.Map.lookup ident binds of
       Just num -> do
@@ -59,9 +65,10 @@ transStmt x = case x of
   SExp exp -> do
     -- TODO print
     optres <- transExp exp
-    case optres of
-      One (OptResNode code height _) -> return code
-      Two (OptResNode code _ _) _ -> return code
+    let (OptResNode code height _) = getFirst optres
+    if height > 1
+      then return $ code ++ getPrintStream ++ ["swap"] ++ printInt
+      else return $ getPrintStream ++ code ++ printInt
 
 data OptResNode = OptResNode [String] Int Int
 
@@ -100,7 +107,7 @@ transOptimizeStack op exp1 exp2 = do
     else do
       -- swap
       let swap = ["swap" | not (isCommutative op)]
-      return $ One $ OptResNode (code2 ++ code1 ++ [show op] ++ swap) (height2 + 1) (nSwaps1 + nSwaps2)
+      return $ One $ OptResNode (code2 ++ code1 ++ swap ++ [show op]) (height2 + 1) (nSwaps1 + nSwaps2)
 
 -- TODO
 transOptimizeStackSwaps :: Op -> Exp -> Exp -> Context OptRes
@@ -127,11 +134,44 @@ isCommutative Div = False
 -- TODO optimize
 literal :: Integer -> String
 literal x
-  | 0 < x && x <= 3 = "iput_" ++ show x
-  | 3 < x = "iput " ++ show x
+  | 0 < x && x <= 5 = "iconst_" ++ show x
+  | x <= 127 = "bipush " ++ show x
+  | x <= 32767 = "sipush " ++ show x
+  | otherwise = "ldc " ++ show x
 
 -- TODO optimize
 store :: Int -> String
 store x
   | 0 < x && x <= 3 = "store_" ++ show x
   | 3 < x = "store " ++ show x
+
+classHeader :: String -> [String]
+classHeader name =
+  [ printf ".class public %s" name,
+    ".super java/lang/Object",
+    ".method public <init>()V",
+    "aload_0",
+    "invokespecial java/lang/Object/<init>()V",
+    "return",
+    ".end method"
+  ]
+
+methodHeader :: Int -> [String]
+methodHeader stackLimit =
+  [ ".method public static main([Ljava/lang/String;)V",
+    printf ".limit stack %d" stackLimit
+  ]
+
+methodOutro :: [String]
+methodOutro =
+  ["return", ".end method"]
+
+getPrintStream = ["getstatic java/lang/System/out Ljava/io/PrintStream;"]
+
+printInt = ["invokevirtual java/io/PrintStream/println(I)V"]
+
+identJvm :: String -> String
+identJvm s =
+  case s of
+    ('.' : _) -> s
+    _ -> "\t" ++ s
