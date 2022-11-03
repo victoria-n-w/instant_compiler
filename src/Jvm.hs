@@ -61,8 +61,7 @@ data StmtRes
 
 transStmt :: Stmt -> Context StmtRes
 transStmt (SAss (Ident ident) exp) = do
-  optres <- transExp exp
-  let (OptResNode code height _) = getFirst optres
+  (OptRes code height) <- transExp exp
   (Env binds freeVar) <- get
   case Data.Map.lookup ident binds of
     Just num -> do
@@ -73,70 +72,79 @@ transStmt (SAss (Ident ident) exp) = do
       put (Env (Data.Map.insert ident freeVar binds) (freeVar + 1))
       return $ Declared (code ++ [store freeVar]) height
 transStmt (SExp exp) = do
-  optres <- transExp exp
-  let (OptResNode code height _) = getFirst optres
+  (OptRes code height) <- transExp exp
   if height > 1
     then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
     else return $ Res (getPrintStream ++ code ++ printInt) 2
 
-data OptResNode = OptResNode
-  { code :: [String],
-    height :: Int,
-    nSwaps :: Int
-  }
-
-data OptRes
-  = One {res :: OptResNode}
-  | Two
-      { noSwapNeeded :: OptResNode,
-        swapNeeded :: OptResNode
-      }
-
-getFirst :: OptRes -> OptResNode
-getFirst (One node) = node
-getFirst (Two node _) = node
-
 transExp :: Exp -> Context OptRes
-transExp (ExpAdd exp1 exp2) = transOptimizeStack Add exp1 exp2
-transExp (ExpMul exp1 exp2) = transOptimizeStack Mul exp1 exp2
-transExp (ExpSub exp1 exp2) =
-  case (exp1, exp2) of
-    (ExpSub _ _, ExpSub _ _) -> transOptimizeStackSwaps Sub exp1 exp2
-    _ -> transOptimizeStack Sub exp1 exp2
-transExp (ExpDiv exp1 exp2) =
-  case (exp1, exp2) of
-    (ExpDiv _ _, ExpDiv _ _) -> transOptimizeStackSwaps Div exp1 exp2
-    _ -> transOptimizeStack Div exp1 exp2
-transExp (ExpLit int) = return $ One $ OptResNode [literal int] 1 0
+transExp (ExpAdd exp1 exp2) = transComm Add exp1 exp2
+transExp (ExpMul exp1 exp2) = transComm Mul exp1 exp2
+transExp (ExpSub exp1 exp2) = do
+  optres <- transNonComm Sub exp1 exp2
+  return $ OptRes (noSwapNeededCode optres) (heightNC optres)
+transExp (ExpDiv exp1 exp2) = do
+  optres <- transNonComm Div exp1 exp2
+  return $ OptRes (noSwapNeededCode optres) (heightNC optres)
+transExp (ExpLit int) = return $ OptRes [literal int] 1
 transExp (ExpVar (Ident ident)) = do
   (Env binds _) <- get
   case Data.Map.lookup ident binds of
     Nothing -> fail $ "Variable not declared: " ++ ident
     Just a ->
-      return $ One $ OptResNode [load a] 1 0
+      return $ OptRes [load a] 1
 
-transOptimizeStack :: Op -> Exp -> Exp -> Context OptRes
-transOptimizeStack op exp1 exp2 = do
-  res1 <- transExp exp1
-  res2 <- transExp exp2
-  let OptResNode code1 height1 nSwaps1 = getFirst res1
-  let OptResNode code2 height2 nSwaps2 = getFirst res2
-  if height1 > height2
+data OptRes = OptRes
+  { code :: [String],
+    height :: Int
+  }
+
+transComm :: Op -> Exp -> Exp -> Context OptRes
+transComm op exp1 exp2 = do
+  OptRes code1 height1 <- transExp exp1
+  OptRes code2 height2 <- transExp exp2
+  if height1 >= height2
     then -- code 1 first
-      return $ One $ OptResNode (code1 ++ code2 ++ [show op]) (height1 + 1) (nSwaps1 + nSwaps2)
+      return $ OptRes (code1 ++ code2 ++ [show op]) $ max height1 (height2 + 1)
     else do
-      -- swap
-      -- TODO
-      let swap = ["swap" | not (isCommutative op)]
-      return $ One $ OptResNode (code2 ++ code1 ++ swap ++ [show op]) (height2 + 1) (nSwaps1 + nSwaps2)
+      return $ OptRes (code2 ++ code1 ++ [show op]) $ max height2 (height1 + 1)
 
--- The Op, and operations in both expressions have to be the same type
-transOptimizeStackSwaps :: Op -> Exp -> Exp -> Context OptRes
-transOptimizeStackSwaps op exp1 exp2 = do
-  optres1 <- transExp exp1
-  optres2 <- transExp exp2
-  case optres1 optres2 of
-    One 
+data OptResNC = OptResNC
+  { swapNeededCode :: [String],
+    noSwapNeededCode :: [String],
+    heightNC :: Int,
+    nSwapNeeded :: Int,
+    nNoSwapNeeded :: Int
+  }
+
+transNonComm :: Op -> Exp -> Exp -> Context OptResNC
+transNonComm op exp1 exp2 = case (op, exp1, exp2) of
+  (Sub, ExpSub _ _, ExpSub _ _) -> fail "not implemented"
+  (Div, ExpDiv _ _, ExpDiv _ _) -> fail "not implemented"
+  _ -> do
+    OptRes code1 height1 <- transExp exp1
+    OptRes code2 height2 <- transExp exp2
+    if height1 >= height2
+      then
+        return $
+          OptResNC
+            -- we need to swap the ancestor if we do a swap here
+            (code1 ++ code2 ++ ["swap"] ++ [show op])
+            -- we don't need to swap the ancestor, if we don't do a swap here
+            (code1 ++ code2 ++ [show op])
+            (max height1 (height2 + 1))
+            1
+            0
+      else
+        return $
+          OptResNC
+            -- we need to swap the ancestor if we don't do a swap here
+            (code2 ++ code1 ++ [show op])
+            -- we don't need to swap the ancestor, if we do a swap here
+            (code2 ++ code1 ++ ["swap"] ++ [show op])
+            (max height2 (height1 + 1))
+            0
+            1
 
 data Op
   = Add
