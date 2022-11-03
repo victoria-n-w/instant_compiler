@@ -1,4 +1,4 @@
-module Compiler where
+module Llvm (compile) where
 
 import Control.Monad.State
 import Data.IntMap qualified as Data.Map
