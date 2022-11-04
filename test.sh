@@ -47,9 +47,7 @@ for code in $(ls examples/*.ins); do
 
     filename=$(basename $code)
     classname=${filename%.ins}
-    pushd $(dirname $code) > /dev/null
-    java $classname > $out
-    popd > /dev/null
+    java -cp $(dirname $code) $classname > $out
 
 
     expected_out="${code%ins}out"

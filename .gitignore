@@ -3,3 +3,7 @@ Instant
 **/*.o
 src/main
 compiler
+examples/*.j
+examples/*.class
+examples/*.ll
+examples/*.bc
