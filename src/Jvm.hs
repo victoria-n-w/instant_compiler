@@ -27,7 +27,7 @@ failure :: Show a => a -> Context [String]
 failure x = fail $ "Undefined case: " ++ show x
 
 transProgram :: Program -> String -> Context String
-transProgram (Prog stmts) className = do
+transProgram (Prog _ stmts) className = do
   (locs, height, locals) <-
     foldM
       ( \(accCode, accHeight, accLocal) x -> do
@@ -60,7 +60,7 @@ data StmtRes
       }
 
 transStmt :: Stmt -> Context StmtRes
-transStmt (SAss (Ident ident) exp) = do
+transStmt (SAss _ (Ident ident) exp) = do
   (OptRes code height) <- transExp exp
   (Env binds freeVar) <- get
   case Data.Map.lookup ident binds of
@@ -71,26 +71,26 @@ transStmt (SAss (Ident ident) exp) = do
       -- variable not declared
       put (Env (Data.Map.insert ident freeVar binds) (freeVar + 1))
       return $ Declared (code ++ [store freeVar]) height
-transStmt (SExp exp) = do
+transStmt (SExp _ exp) = do
   (OptRes code height) <- transExp exp
   if height > 1
     then return $ Res (code ++ getPrintStream ++ ["swap"] ++ printInt) height
     else return $ Res (getPrintStream ++ code ++ printInt) 2
 
 transExp :: Exp -> Context OptRes
-transExp (ExpAdd exp1 exp2) = transComm Add exp1 exp2
-transExp (ExpMul exp1 exp2) = transComm Mul exp1 exp2
-transExp (ExpSub exp1 exp2) = do
+transExp (ExpAdd _ exp1 exp2) = transComm Add exp1 exp2
+transExp (ExpMul _ exp1 exp2) = transComm Mul exp1 exp2
+transExp (ExpSub _ exp1 exp2) = do
   optres <- transNonComm Sub exp1 exp2
   return $ OptRes (noSwapNeededCode optres) (heightNC optres)
-transExp (ExpDiv exp1 exp2) = do
+transExp (ExpDiv _ exp1 exp2) = do
   optres <- transNonComm Div exp1 exp2
   return $ OptRes (noSwapNeededCode optres) (heightNC optres)
-transExp (ExpLit int) = return $ OptRes [literal int] 1
-transExp (ExpVar (Ident ident)) = do
+transExp (ExpLit _ int) = return $ OptRes [literal int] 1
+transExp (ExpVar (Just position) (Ident ident)) = do
   (Env binds _) <- get
   case Data.Map.lookup ident binds of
-    Nothing -> fail $ "Variable not declared: " ++ ident
+    Nothing -> fail $ printf "%s: variable [%s] not initialized" (show position) ident
     Just a ->
       return $ OptRes [load a] 1
 
@@ -119,11 +119,11 @@ data OptResNC = OptResNC
 
 transNonComm :: Op -> Exp -> Exp -> Context OptResNC
 transNonComm op exp1 exp2 = case (op, exp1, exp2) of
-  (Sub, ExpSub exp11 exp12, ExpSub exp21 exp22) -> do
+  (Sub, ExpSub _ exp11 exp12, ExpSub _ exp21 exp22) -> do
     optres1 <- transNonComm Sub exp11 exp12
     optres2 <- transNonComm Sub exp21 exp22
     optimizeSwaps op optres1 optres2
-  (Div, ExpDiv exp11 exp12, ExpDiv exp21 exp22) -> do
+  (Div, ExpDiv _ exp11 exp12, ExpDiv _ exp21 exp22) -> do
     optres1 <- transNonComm Div exp11 exp12
     optres2 <- transNonComm Div exp21 exp22
     optimizeSwaps op optres1 optres2

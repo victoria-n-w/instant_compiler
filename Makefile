@@ -22,7 +22,7 @@ compiler : Instant/Abs.hs Instant/Lex.hs Instant/Par.hs Instant/Print.hs Instant
 # Rules for building the parser.
 
 Instant/Abs.hs Instant/Lex.x Instant/Par.y Instant/Print.hs Instant/Test.hs : Instant.cf
-	bnfc --haskell -d Instant.cf
+	bnfc --functor --haskell -d Instant.cf
 
 %.hs : %.y
 	${HAPPY} ${HAPPY_OPTS} $<

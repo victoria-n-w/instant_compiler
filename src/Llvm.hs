@@ -44,7 +44,7 @@ mainRet =
   ]
 
 transProgram :: Program -> Context String
-transProgram (Prog stmts) = do
+transProgram (Prog _ stmts) = do
   locs <-
     foldM
       ( \acc x -> do
@@ -58,7 +58,7 @@ transProgram (Prog stmts) = do
       header ++ mainEntry ++ locs ++ mainRet
 
 transStmt :: Stmt -> Context [String]
-transStmt (SAss (Ident ident) exp) = do
+transStmt (SAss _ (Ident ident) exp) = do
   LlvmResult r code <- transExp exp
   Env binds old_r <- get
   if Data.Set.member ident binds
@@ -73,17 +73,17 @@ transStmt (SAss (Ident ident) exp) = do
           ++ [ printf "%s = alloca i32" ("%" ++ ident),
                printf "store i32 %s, i32* %s" (show r) ("%" ++ ident)
              ]
-transStmt (SExp exp) = do
+transStmt (SExp _ exp) = do
   LlvmResult r code <- transExp exp
   return $ code ++ [printf "call void @printInt(i32 %s)" (show r)]
 
 transExp :: Exp -> Context LlvmResult
-transExp (ExpAdd exp1 exp2) = transBinaryExp "add" exp2 exp1 -- swap the expressions
-transExp (ExpSub exp1 exp2) = transBinaryExp "sub" exp1 exp2
-transExp (ExpMul exp1 exp2) = transBinaryExp "mul" exp1 exp2
-transExp (ExpDiv exp1 exp2) = transBinaryExp "sdiv" exp1 exp2
-transExp (ExpLit integer) = return $ LlvmResult (Literal integer) []
-transExp (ExpVar (Ident ident)) = do
+transExp (ExpAdd _ exp1 exp2) = transBinaryExp "add" exp2 exp1 -- swap the expressions
+transExp (ExpSub _ exp1 exp2) = transBinaryExp "sub" exp1 exp2
+transExp (ExpMul _ exp1 exp2) = transBinaryExp "mul" exp1 exp2
+transExp (ExpDiv _ exp1 exp2) = transBinaryExp "sdiv" exp1 exp2
+transExp (ExpLit _ integer) = return $ LlvmResult (Literal integer) []
+transExp (ExpVar (Just position) (Ident ident)) = do
   Env binds _ <- get
   if Data.Set.member ident binds
     then do
@@ -92,7 +92,7 @@ transExp (ExpVar (Ident ident)) = do
         LlvmResult
           r
           [printf "%s = load i32, i32* %s" (show r) ("%" ++ ident)]
-    else fail $ "Variable not initialized: " ++ ident
+    else fail $ printf "%s: variable [%s] not initialized" (show position) ident
 
 transBinaryExp :: String -> Exp -> Exp -> Context LlvmResult
 transBinaryExp op exp1 exp2 = do

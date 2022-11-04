@@ -29,5 +29,5 @@ main = do
     Ok res ->
       putStrLn res
     Bad msg -> do
-      hPutStrLn stderr $ "Error: " ++ msg
+      hPutStrLn stderr $ "\ESC[0;31mError:\ESC[0m " ++ msg
       exitFailure
