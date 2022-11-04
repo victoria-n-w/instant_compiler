@@ -2,6 +2,11 @@
 
 make
 
+[[ $? -eq 0 ]] || {
+    echo -e "\e[0;31mghc error\e[0m"
+    exit 1
+}
+
 compiler=./compiler
 
 

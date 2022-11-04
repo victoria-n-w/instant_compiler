@@ -119,8 +119,14 @@ data OptResNC = OptResNC
 
 transNonComm :: Op -> Exp -> Exp -> Context OptResNC
 transNonComm op exp1 exp2 = case (op, exp1, exp2) of
-  (Sub, ExpSub _ _, ExpSub _ _) -> fail "not implemented"
-  (Div, ExpDiv _ _, ExpDiv _ _) -> fail "not implemented"
+  (Sub, ExpSub exp11 exp12, ExpSub exp21 exp22) -> do
+    optres1 <- transNonComm Sub exp11 exp12
+    optres2 <- transNonComm Sub exp21 exp22
+    optimizeSwaps op optres1 optres2
+  (Div, ExpDiv exp11 exp12, ExpDiv exp21 exp22) -> do
+    optres1 <- transNonComm Div exp11 exp12
+    optres2 <- transNonComm Div exp21 exp22
+    optimizeSwaps op optres1 optres2
   _ -> do
     OptRes code1 height1 <- transExp exp1
     OptRes code2 height2 <- transExp exp2
@@ -145,6 +151,53 @@ transNonComm op exp1 exp2 = case (op, exp1, exp2) of
             (max height2 (height1 + 1))
             0
             1
+
+optimizeSwaps :: Op -> OptResNC -> OptResNC -> Context OptResNC
+optimizeSwaps op optres1 optres2 = do
+  let nSwapsDontSwap = nNoSwapNeeded optres1 + nNoSwapNeeded optres2
+  let nSwapsSwap = nSwapNeeded optres1 + nSwapNeeded optres2
+  if heightNC optres1 > heightNC optres2
+    then
+      return $
+        OptResNC
+          -- we do an unnecessary swap here, swap is needed higher in the tree
+          (swapNeededCode optres1 ++ swapNeededCode optres2 ++ ["swap"] ++ [show op])
+          -- we don't do any swaps here, no swaps are neither heigher in the tree either
+          (noSwapNeededCode optres1 ++ noSwapNeededCode optres2 ++ [show op])
+          (heightNC optres1)
+          (nSwapsSwap + 1)
+          nSwapsDontSwap
+    else
+      if heightNC optres2 > heightNC optres1
+        then
+          return $
+            OptResNC
+              -- we dont do a swap here, it needs to be done higher in a tree instead
+              (noSwapNeededCode optres2 ++ noSwapNeededCode optres1 ++ [show op])
+              -- we do a swap here, code is correct the way it is, no swap needed higher in the tree
+              (swapNeededCode optres2 ++ swapNeededCode optres1 ++ ["swap"] ++ [show op])
+              (heightNC optres2)
+              nSwapsDontSwap
+              (nSwapsSwap + 1)
+        else
+          if nSwapsDontSwap <= nSwapsSwap
+            then
+              return $
+                OptResNC
+                  -- we artificially swap the code, swap is needed higher up
+                  (noSwapNeededCode optres2 ++ noSwapNeededCode optres1 ++ [show op])
+                  (noSwapNeededCode optres1 ++ noSwapNeededCode optres2 ++ [show op])
+                  (heightNC optres1 + 1)
+                  nSwapsDontSwap
+                  nSwapsDontSwap
+            else
+              return $
+                OptResNC
+                  (swapNeededCode optres1 ++ swapNeededCode optres2 ++ [show op])
+                  (swapNeededCode optres2 ++ swapNeededCode optres1 ++ [show op])
+                  (heightNC optres1 + 1)
+                  nSwapsSwap
+                  nSwapsSwap
 
 data Op
   = Add
