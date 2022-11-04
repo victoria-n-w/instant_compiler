@@ -13,16 +13,16 @@ process :: String -> Lang -> Err String
 process source lang = do
   program <- pProgram $ myLexer source
   case lang of
-    JVM -> Jvm.compile program
+    JVM className -> Jvm.compile program className
     LLVM -> Llvm.compile program
 
-data Lang = JVM | LLVM
+data Lang = JVM String | LLVM
 
 main :: IO ()
 main = do
   args <- getArgs
   let lang = case args of
-        ["jvm"] -> JVM
+        ["jvm", className] -> JVM className
         ["llvm"] -> LLVM
   source <- getContents
   case process source lang of

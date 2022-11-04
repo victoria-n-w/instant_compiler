@@ -1,0 +1,7 @@
+#! /bin/bash
+
+compiler="./compiler"
+
+compiler_out="${1%ins}ll"
+cat $1 | $compiler llvm > $compiler_out
+llvm-as $compiler_out -o "${compiler_out%ll}bc"

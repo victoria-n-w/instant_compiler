@@ -8,10 +8,10 @@ import Instant.ErrM
 import Instant.Par
 import Text.Printf
 
-compile :: Program -> Err String
-compile p =
+compile :: Program -> String -> Err String
+compile p className =
   evalStateT
-    (transProgram p)
+    (transProgram p className)
     $ Env empty 1
 
 type Result = Err [String]
@@ -26,8 +26,8 @@ type Context a = StateT Env Err a
 failure :: Show a => a -> Context [String]
 failure x = fail $ "Undefined case: " ++ show x
 
-transProgram :: Program -> Context String
-transProgram (Prog stmts) = do
+transProgram :: Program -> String -> Context String
+transProgram (Prog stmts) className = do
   (locs, height, locals) <-
     foldM
       ( \(accCode, accHeight, accLocal) x -> do
@@ -43,7 +43,7 @@ transProgram (Prog stmts) = do
       Prelude.map
         identJvm
         ( classHeader
-            "Name"
+            className
             ++ methodHeader height (locals + 1)
             ++ locs
             ++ methodOutro
