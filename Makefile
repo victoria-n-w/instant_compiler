@@ -36,7 +36,7 @@ Instant/Test : Instant/Abs.hs Instant/Lex.hs Instant/Par.hs Instant/Print.hs Ins
 # Rules for cleaning generated files.
 
 clean :
-	-rm -f Instant/*.hi Instant/*.o Instant/*.log Instant/*.aux Instant/*.dvi src/*.hi src/*.o compiler
+	-rm -f Instant/*.hi Instant/*.o Instant/*.log Instant/*.aux Instant/*.dvi src/*.hi src/*.o compiler examples/*.j examples/*.ll examples/*.bc examples/*.class
 
 distclean : clean
 	-rm -f Instant/Abs.hs Instant/Abs.hs.bak Instant/ComposOp.hs Instant/ComposOp.hs.bak Instant/Doc.txt Instant/Doc.txt.bak Instant/ErrM.hs Instant/ErrM.hs.bak Instant/Layout.hs Instant/Layout.hs.bak Instant/Lex.x Instant/Lex.x.bak Instant/Par.y Instant/Par.y.bak Instant/Print.hs Instant/Print.hs.bak Instant/Skel.hs Instant/Skel.hs.bak Instant/Test.hs Instant/Test.hs.bak Instant/XML.hs Instant/XML.hs.bak Instant/AST.agda Instant/AST.agda.bak Instant/Parser.agda Instant/Parser.agda.bak Instant/IOLib.agda Instant/IOLib.agda.bak Instant/Main.agda Instant/Main.agda.bak Instant/Instant.dtd Instant/Instant.dtd.bak Instant/Test Instant/Lex.hs Instant/Par.hs Instant/Par.info Instant/ParData.hs
