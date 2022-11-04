@@ -1,0 +1,9 @@
+#! /bin/bash
+
+compiler="./compiler"
+compiler_out="${1%ins}j"
+filename=$(basename $1)
+classname=${filename%.ins}
+cat $1 | $compiler jvm $classname > $compiler_out
+
+java -jar lib/jasmin.jar -d $(dirname $1) ${compiler_out}
